@@ -1,0 +1,17 @@
+SELECT
+  SUM(CASE WHEN has_large_diff = 0 THEN 1 ELSE 0 END) AS count_0,
+  SUM(CASE WHEN has_large_diff = 1 THEN 1 ELSE 0 END) AS count_1
+FROM (
+  SELECT
+    CASE
+      WHEN 
+        ABS(COALESCE(P1_FCV01D_sudden_change, 0) - COALESCE(P1_FCV01Z_sudden_change, 0)) >= 0.3 OR
+        ABS(COALESCE(P1_FCV02D_sudden_change, 0) - COALESCE(P1_FCV02Z_sudden_change, 0)) >= 0.3 OR
+        ABS(COALESCE(P1_FCV03D_sudden_change, 0) - COALESCE(P1_FCV03Z_sudden_change, 0)) >= 0.3 OR
+        ABS(COALESCE(P1_LCV01D_sudden_change, 0) - COALESCE(P1_LCV01Z_sudden_change, 0)) >= 0.3 OR
+        ABS(COALESCE(P1_PCV01D_sudden_change, 0) - COALESCE(P1_PCV01Z_sudden_change, 0)) >= 0.3 OR
+        ABS(COALESCE(P1_PCV02D_sudden_change, 0) - COALESCE(P1_PCV02Z_sudden_change, 0)) >= 0.3
+      THEN 1 ELSE 0
+    END AS has_large_diff
+  FROM sudden_changes
+);
