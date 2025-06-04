@@ -1,0 +1,4 @@
+SELECT timestamp, attack_probability
+FROM attack_probabilities
+ORDER BY attack_probability DESC
+LIMIT 10;
