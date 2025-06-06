@@ -1,0 +1,53 @@
+import pandas as pd
+
+# 1. 데이터 불러오기
+test_df = pd.read_csv("preprocessed_test_1.csv")
+
+# 비교하고 싶은 컬럼 쌍 리스트
+column_pairs = [
+    ('P1_FCV01D', 'P1_FCV01Z'),
+    ('P1_FCV02D', 'P1_FCV02Z'),
+    ('P1_FCV03D', 'P1_FCV03Z'),
+    ('P1_LCV01D', 'P1_LCV01Z'),
+    ('P1_PCV01D', 'P1_PCV01Z'),
+    ('P1_PCV02D', 'P1_PCV02Z')
+]
+
+threshold = 0.3
+
+# test_df 악성 유형 탐지
+diff_test_sum = pd.Series(0.0, index=test_df.index)
+valid_count = 0
+
+for cmd_col, real_col in column_pairs:
+    if cmd_col in test_df.columns and real_col in test_df.columns:
+        diff = (test_df[cmd_col] - test_df[real_col]).abs()
+        diff_test_sum += diff
+        valid_count += 1
+
+avg_diff = diff_test_sum / valid_count
+test_df['label'] = (avg_diff >= threshold).astype(int)
+
+# 클래스 비율 확인
+print("Label value counts:\n", test_df['label'].value_counts())
+
+# 실제 라벨 데이터 불러오기
+label_df = pd.read_csv("labeltest_merged.csv")
+
+# 실제 라벨만 따로 추출
+true_labels = label_df['label']
+
+from sklearn.metrics import accuracy_score
+
+predicted_labels = test_df['label']
+
+accuracy = accuracy_score(true_labels, predicted_labels)
+print(f"일치율 (Accuracy): {accuracy:.4f}")
+
+// result
+// Label value counts:
+//  label
+// 0    252406
+// 1     31994
+// Name: count, dtype: int64
+// 일치율 (Accuracy): 0.8675
