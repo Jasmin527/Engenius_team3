@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 1. 데이터 불러오기
-test_df = pd.read_csv("preprocessed_test_1.csv")
+test_df = pd.read_csv("preprocessed_test_5.csv")
 
 # 비교하고 싶은 컬럼 쌍 리스트
 column_pairs = [
