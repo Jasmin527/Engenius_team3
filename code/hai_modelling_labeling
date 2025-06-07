@@ -1,0 +1,51 @@
+# 1. 데이터 불러오기
+train_df = pd.read_csv("preprocessed_train_5.csv")
+test_df = pd.read_csv("preprocessed_test_5.csv")
+
+# 비교하고 싶은 컬럼 쌍 리스트
+column_pairs = [
+    ('P1_FCV01D', 'P1_FCV01Z'),
+    ('P1_FCV02D', 'P1_FCV02Z'),
+    ('P1_FCV03D', 'P1_FCV03Z'),
+    ('P1_LCV01D', 'P1_LCV01Z'),
+    ('P1_PCV01D', 'P1_PCV01Z'),
+    ('P1_PCV02D', 'P1_PCV02Z')
+]
+
+threshold = 0.3
+
+# train_df 악성 유형 탐지
+diff_train_sum = pd.Series(0.0, index=train_df.index)
+valid_count = 0
+
+for cmd_col, real_col in column_pairs:
+    if cmd_col in train_df.columns and real_col in train_df.columns:
+        diff = (train_df[cmd_col] - train_df[real_col]).abs()
+        diff_train_sum += diff
+        valid_count += 1
+
+avg_diff = diff_train_sum / valid_count
+train_df['label'] = (avg_diff >= threshold).astype(int)
+
+# test_df 악성 유형 탐지
+diff_test_sum = pd.Series(0.0, index=test_df.index)
+valid_count = 0
+
+for cmd_col, real_col in column_pairs:
+    if cmd_col in test_df.columns and real_col in test_df.columns:
+        diff = (test_df[cmd_col] - test_df[real_col]).abs()
+        diff_test_sum += diff
+        valid_count += 1
+
+avg_diff = diff_test_sum / valid_count
+test_df['label'] = (avg_diff >= threshold).astype(int)
+
+
+# 7. 저장
+train_df.to_csv("train_labeled_1.csv", index=False)
+test_df.to_csv("test_labeled_1.csv", index=False)
+
+
+# 클래스 비율 확인
+print("Label value counts:\n", train_df['label'].value_counts())
+print("Label value counts:\n", test_df['label'].value_counts())
