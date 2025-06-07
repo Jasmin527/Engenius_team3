@@ -1,0 +1,83 @@
+// 라이브러리
+import pandas as pd
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+// .csv 파일 불러오기
+df_hai_train = pd.read_csv("hai_train_merged.csv")
+df_hai_test = pd.read_csv("hai_test_merged.csv")
+
+//전처리 코드
+def preprocess_df(df_hai_train, df_hai_test, scaler=None, fit=False):
+    import pandas as pd
+    import numpy as np
+    from sklearn.preprocessing import StandardScaler
+
+    # 1. 'OUT' 포함 컬럼 제거
+    df_hai_train = df_hai_train.drop(columns=[col for col in df_hai_train.columns if 'OUT' in col.upper()], errors='ignore')
+    df_hai_test = df_hai_test.drop(columns=[col for col in df_hai_test.columns if 'OUT' in col.upper()], errors='ignore')
+
+    # 2. 유지보수 목적 컬럼 제거 (test만 적용)
+    mt_cols = ['DM-CIP-1ST', 'DM-CIP-2ND', 'DM-CIP-START', 'DM-CIP-STEP1', 'DM-CIP-STEP11',
+               'DM-CIPH-1ST', 'DM-CIPH-2ND', 'DM-CIPH-START', 'DM-CIPH-STEP1', 'DM-CIPH-STEP11',
+               'DM-PP04-SV', 'DM-COOL-ON', 'DM-COOL-R', 'DM-AIT-DO', 'DM-AIT-PH']
+    df_hai_test = df_hai_test.drop(columns=[col for col in mt_cols if col in df_hai_test.columns], errors='ignore')
+
+    # 3. 알람/경보 컬럼 제거 (test만 적용)
+    alarm_cols = ['DM-LSH-03', 'DM-LSH-04', 'DM-LSH01', 'DM-LSH02', 'DM-LSL-04', 'DM-LSL01', 'DM-LSL02', 'DQ03-LCV01-D']
+    df_hai_test = df_hai_test.drop(columns=[col for col in alarm_cols if col in df_hai_test.columns], errors='ignore')
+
+    # 4. 설정 기반 불필요한 컬럼 제거 (train만 적용)
+    set_cols = ['P1_PIT01_HH', 'P1_PP04SP', 'P2_VTR01', 'P2_VTR02', 'P2_VTR03', 'P2_VTR04', 'P3_LH01', 'P3_LL01']
+    lamp_cols = ['P2_ATSW_Lamp', 'P2_MASW_Lamp']
+    same_cols = ['P2_TripEx']
+    pass_cols = ['P2_MASW', 'P2_ManualGO', 'P2_ManualSD']
+    drop_cols = set_cols + lamp_cols + same_cols + pass_cols
+    df_hai_train = df_hai_train.drop(columns=[col for col in drop_cols if col in df_hai_train.columns], errors='ignore')
+
+    # 5. 결측치 처리 (0으로 대체) + FutureWarning 방지
+    df_hai_train = df_hai_train.infer_objects(copy=False).fillna(0)
+    df_hai_test = df_hai_test.infer_objects(copy=False).fillna(0)
+
+
+    # 6. timestamp 컬럼 보존
+    train_timestamp = df_hai_train['timestamp'] if 'timestamp' in df_hai_train.columns else None
+    test_timestamp = df_hai_test['timestamp'] if 'timestamp' in df_hai_test.columns else None
+
+    # 7. 숫자형 컬럼만 선택
+    train_numeric = df_hai_train.select_dtypes(include=['int64', 'float64'])
+    test_numeric = df_hai_test.select_dtypes(include=['int64', 'float64'])
+
+    # 공통 컬럼만 유지 (순서 고정)
+    common_cols = sorted(set(train_numeric.columns) & set(test_numeric.columns))
+    train_numeric = train_numeric[common_cols]
+    test_numeric = test_numeric[common_cols]
+
+    # 8. 스케일링
+    if scaler is None:
+        scaler = StandardScaler()
+    if fit:
+        scaler.fit(train_numeric)
+
+    train_scaled = pd.DataFrame(scaler.transform(train_numeric), columns=common_cols, index=train_numeric.index)
+    test_scaled = pd.DataFrame(scaler.transform(test_numeric), columns=common_cols, index=test_numeric.index)
+
+    # 9. timestamp 다시 붙이기
+    if train_timestamp is not None:
+        train_scaled['timestamp'] = train_timestamp.reset_index(drop=True)
+    if test_timestamp is not None:
+        test_scaled['timestamp'] = test_timestamp.reset_index(drop=True)
+
+    return train_scaled, test_scaled, scaler
+
+train_scaled, test_scaled, scaler = preprocess_df(df_hai_train, df_hai_test, fit=True)
+
+## 저장 
+train_scaled.to_csv("preprocessed_train_5.csv", index=False)
+test_scaled.to_csv("preprocessed_test_5.csv", index=False)
