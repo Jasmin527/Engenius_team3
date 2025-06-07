@@ -1,0 +1,75 @@
+import pandas as pd
+import numpy as np
+import sqlite3  # 또는 다른 DB 엔진 사용 가능
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+
+# CSV 로드
+train_df = pd.read_csv("train_labeled.csv")
+test_df = pd.read_csv("test_labeled.csv")
+
+full_df = pd.concat([train_df, test_df], ignore_index=True)
+
+// 1. 급격한값 변화 탐지 및 DB 연결
+def detect_sudden_changes(df, threshold=0.3):
+    sudden_change_flags = []
+
+    for col in df.select_dtypes(include=[np.number]).columns:
+        if col in ['label']:  # 라벨 제외
+            continue
+        diffs = df[col].diff().abs()
+        sudden_flag = (diffs > threshold).astype(int)
+        sudden_change_flags.append(sudden_flag.rename(f"{col}_sudden_change"))
+
+    sudden_df = pd.concat(sudden_change_flags, axis=1)
+    sudden_df['timestamp'] = df['timestamp']
+    return sudden_df
+
+sudden_changes_df = detect_sudden_changes(full_df)
+
+# SQLite DB 연결
+conn = sqlite3.connect("security_analysis.db")
+sudden_changes_df.to_sql("sudden_change_values", conn, if_exists="replace", index=False)
+
+// 2. 보안 위협 구간 탐지 및 DB 저장
+def identify_attack_intervals(df):
+    df = df.copy()
+    df['attack'] = df['label'].apply(lambda x: 1 if x != 0 else 0)
+    attack_intervals = df[df['attack'] == 1][['timestamp', 'label']]
+    return attack_intervals
+
+attack_intervals_df = identify_attack_intervals(full_df)
+attack_intervals_df.to_sql("attack_intervals", conn, if_exists="replace", index=False)
+
+
+// 3. 이상 탐지 (정상 데이터에서 향후 위협 가능성 높은 행 찾기)
+def detect_anomalous_normals(df, top_n=10):
+    df = df.dropna()
+    feature_cols = [col for col in df.columns if col not in ['timestamp', 'label']]
+    X = df[feature_cols]
+
+    model = IsolationForest(contamination=0.01, random_state=42)
+    model.fit(X)
+
+    scores = model.decision_function(X)  # 높을수록 정상
+    df['anomaly_score'] = scores
+
+    top_anomalies = df.sort_values(by='anomaly_score').head(top_n)
+    return top_anomalies[['timestamp', 'anomaly_score'] + feature_cols]
+
+# 4. DB 연결 및 저장
+conn = sqlite3.connect("security_analysis.db")
+
+# (1) 급격한 변화 탐지 결과 저장
+sudden_changes_df = detect_sudden_changes(full_df)
+sudden_changes_df.to_sql("sudden_changes", conn, if_exists="replace", index=False)
+
+# (2) 정상 데이터만 추출해서 이상치 기반 향후 위협 예측
+from sklearn.ensemble import IsolationForest
+
+normal_df = full_df[full_df['label'] == 0].copy()
+top_suspicious_normals = detect_anomalous_normals(normal_df, top_n=10)
+top_suspicious_normals.to_sql("predicted_future_threats", conn, if_exists="replace", index=False)
+
+conn.close()
